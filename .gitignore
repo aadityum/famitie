@@ -1,0 +1,32 @@
+
+!.vscode/extensions.json
+# Editor directories and files
+# Logs
+*.keystore
+*.local
+*.log
+*.njsproj
+*.ntvs*
+*.sln
+*.suo
+*.sw?
+.DS_Store
+.env
+.env.local
+.idea
+.vscode/*
+android/.gradle/
+android/app/build/
+dist
+dist-ssr
+dist/
+ios/App/Pods/
+ios/App/build/
+lerna-debug.log*
+logs
+node_modules
+node_modules/
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
