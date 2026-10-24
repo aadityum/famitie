@@ -73,6 +73,71 @@ Capacitor generates the `ios/` and `android/` folders, but these entries have to
 <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 ```
 
-The location permissions come with the Capacitor Geolocation plugin. Background location (the "Always" and background permissions described above) is added later together with the background-geolocation plugin.
+## Live location in the background (iPhone and Android)
+
+FamiTie uses the `@capgo/background-geolocation` plugin so shared location keeps updating with the screen off. After pulling this version, run once:
+
+```bash
+npm install
+npm run build
+npx cap sync
+```
+
+**iOS: add these to `ios/App/App/Info.plist`** (in Xcode: App target, Info tab, **+**):
+
+| Row to add (Xcode's name) | Type | Value |
+|---|---|---|
+| Privacy - Location Always and When In Use Usage Description | String | FamiTie shares your live location with your family circle, even when the app is closed, while you have location sharing switched on. |
+| Required background modes | Array | one item: **App registers for location updates** |
+
+Or add the raw keys in Source Code view:
+
+```xml
+<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+<string>FamiTie shares your live location with your family circle, even when the app is closed, while you have location sharing switched on.</string>
+<key>UIBackgroundModes</key>
+<array>
+  <string>location</string>
+</array>
+```
+
+(You can also tick **Location updates** under **Signing & Capabilities → + Capability → Background Modes**.)
+
+**Android** (done on the Windows machine after `npx cap add android`):
+- `capacitor.config.ts` already sets `android.useLegacyBridge: true`, which stops updates halting after 5 minutes in the background.
+- The plugin adds the foreground-service permissions itself. On Android 13+ the app asks for notification permission, because Android requires a visible notification while location is used in the background.
+
+**What users see:** iPhone shows the blue location indicator; Android shows a "FamiTie is sharing your location" notification. Both are required by the platforms.
+
+**App Store and Play review:** both stores look closely at background location. Be ready to explain in the review notes that it is user-controlled (an on/off switch), visible (indicator or notification) and only shares with the person's own family circle. Android's separate `ACCESS_BACKGROUND_LOCATION` permission is deliberately not requested yet, which avoids Google's extra background-location review.
+
+Without these entries, location sharing still works while the app is open, but stops when the phone locks.
 
 Without the microphone entries, the hold-to-talk button will fail on a real phone even though it works in a desktop browser.
+
+## App lock with the phone's screen lock (Face ID / fingerprint / passcode)
+
+FamiTie can ask for the phone's own screen lock before it opens (Settings, "Lock FamiTie"). It uses the `@capgo/capacitor-native-biometric` plugin. After pulling this version run once: `npm install`, `npm run build`, `npx cap sync`.
+
+**iOS** (Xcode: App target, Info tab, **+**), or add to `Info.plist`:
+
+| Row to add | Type | Value |
+|---|---|---|
+| Privacy - Face ID Usage Description | String | FamiTie uses Face ID to keep your family's messages private when the app is locked. |
+
+```xml
+<key>NSFaceIDUsageDescription</key>
+<string>FamiTie uses Face ID to keep your family's messages private when the app is locked.</string>
+```
+
+Without this row the app can crash on iPhones with Face ID the first time the lock asks.
+
+**Android** (`android/app/src/main/AndroidManifest.xml`, inside `<manifest>`):
+
+```xml
+<uses-permission android:name="android.permission.USE_BIOMETRIC" />
+```
+
+On a phone, the lock accepts Face ID or fingerprint and falls back to the phone's passcode, so someone without biometrics can still use it. In a browser (no phone lock available) the same switch sets a FamiTie PIN instead.
+
+Incoming SOS and "Come for a sec" alerts are drawn above the lock screen, so they ring and can be answered without unlocking.

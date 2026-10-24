@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 import { Geolocation, type Position } from '@capacitor/geolocation'
+import { BackgroundGeolocation, type Location as BgLocation } from '@capgo/background-geolocation'
 
 export type Fix = { lat: number; lng: number; accuracyM: number; at: number }
 
@@ -8,6 +9,13 @@ const toFix = (p: Position): Fix => ({
   lng: p.coords.longitude,
   accuracyM: p.coords.accuracy,
   at: p.timestamp,
+})
+
+const fromBg = (l: BgLocation): Fix => ({
+  lat: l.latitude,
+  lng: l.longitude,
+  accuracyM: l.accuracy,
+  at: l.time ?? Date.now(),
 })
 
 /** One high-accuracy fix. Used when SOS / "come for a sec" fires. */
@@ -24,25 +32,43 @@ export async function getPreciseFix(): Promise<Fix | null> {
 }
 
 /**
- * Foreground tracking while the sharing toggle is on.
- * True background tracking (app closed / screen off) needs
- * @capacitor-community/background-geolocation: see docs/BUILD.md.
+ * Continuous tracking while sharing is on. Returns a function that stops it.
+ *
+ *  - On the phone app (iOS / Android) it keeps running with the screen off or the app in the
+ *    background: iOS shows the blue location indicator, Android shows a "FamiTie is sharing
+ *    your location" notification. Both are required by the platforms and are good for trust.
+ *  - In a desktop browser it only runs while the page is open.
  */
-export async function startSharing(onFix: (f: Fix) => void): Promise<string> {
-  // On the web the browser asks for permission itself when tracking starts,
-  // and Capacitor's requestPermissions() isn't supported there.
+export async function startSharing(onFix: (f: Fix) => void, onError?: (message: string) => void): Promise<() => Promise<void>> {
   if (Capacitor.isNativePlatform()) {
-    const perm = await Geolocation.requestPermissions()
-    if (perm.location !== 'granted') throw new Error('Location permission denied')
+    await BackgroundGeolocation.start(
+      {
+        backgroundTitle: 'FamiTie is sharing your location',
+        backgroundMessage: 'Your family circle can see where you are. Open FamiTie to turn this off.',
+        requestPermissions: true,
+        stale: false,
+        distanceFilter: 0, // keep updating even when standing still, so "live" stays live
+      },
+      (loc, err) => {
+        if (err) {
+          if (err.code === 'NOT_AUTHORIZED') onError?.('Location permission was denied. Allow it for FamiTie in Settings.')
+          else onError?.(err.message || 'Location is unavailable')
+          return
+        }
+        if (loc) onFix(fromBg(loc))
+      },
+    )
+    return async () => {
+      await BackgroundGeolocation.stop()
+    }
   }
-  return Geolocation.watchPosition(
-    { enableHighAccuracy: true, timeout: 15_000 },
-    (p) => {
-      if (p) onFix(toFix(p))
-    },
-  )
-}
 
-export async function stopSharing(watchId: string) {
-  await Geolocation.clearWatch({ id: watchId })
+  // Browser: the browser asks for permission itself when tracking starts.
+  const id = await Geolocation.watchPosition({ enableHighAccuracy: true, timeout: 15_000 }, (p, err) => {
+    if (err) onError?.(err.message || 'Location is unavailable')
+    else if (p) onFix(toFix(p))
+  })
+  return async () => {
+    await Geolocation.clearWatch({ id })
+  }
 }

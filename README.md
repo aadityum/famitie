@@ -41,7 +41,7 @@ npx cap open ios            # Xcode: pick a simulator, Cmd+R
 npx cap open android        # Android Studio
 ```
 
-Database: run `supabase/migrations/0001_initial_schema.sql`, then `0002_auth_and_circles.sql`, in the Supabase SQL Editor. See [`docs/TESTING.md`](docs/TESTING.md) for the full backend setup and a script for testing with several users.
+Database: paste and run `supabase/migrations/0001_initial_schema.sql`, `0002_auth_and_circles.sql`, then `0003_admin_chat_presence.sql`, then `0004_settings_voice_account.sql`, in that order, in the Supabase SQL Editor. See [`docs/TESTING.md`](docs/TESTING.md) for the full backend setup and a script for testing with several users.
 
 The bundle ID in `capacitor.config.ts` (`com.adibotz.famitie`) is a placeholder until the name clears the trademark and domain checks. Change it before registering the app with Apple or Google.
 
@@ -49,6 +49,6 @@ The bundle ID in `capacitor.config.ts` (`com.adibotz.famitie`) is a placeholder 
 
 Phase one in progress.
 
-Working while the app is open: sign-up and sign-in, family circles with invite codes and roles (elder or family), online presence, "Come for a sec" and SOS alerts that ring every other member live (first to answer stops the ringing for the rest), hold-to-talk voice clips between members, user-controlled location sharing with a live "where is" link, a 3-second cancel window on alerts, and a responsive phone and tablet layout. The database security rules were tested locally with several users.
+Working while the app is open: sign-up and sign-in, family circles with invite codes and roles (elder or family), online presence, "Come for a sec" and SOS alerts that ring every other member live (first to answer stops the ringing for the rest), hold-to-talk voice clips between members (the sender can delete a clip for everyone), saved text chat for people who can't talk, a list of recent SOS and "Come for a sec" calls showing who answered (kept for a time each person chooses, up to 24 hours), voice recordings that are kept 30 minutes by default and 6 hours at most, password reset by emailed code and password change, an app lock using the phone's screen lock or a PIN (alerts still ring through it), account deletion, one admin per circle who passes on automatically when they leave (with leave, remove, make-admin and inactive-member tags), live location sharing that stays on until the user switches it off (and keeps updating in the background on the phone apps), a 3-second cancel window on alerts, and a responsive phone and tablet layout. The database security rules were tested locally with several users.
 
-Not built yet: waking a locked or closed phone (push notifications, CallKit, Android foreground service), live two-way calls, location while the app is closed, speech-to-text transcripts, multiple circles per person, and the Apple Watch and Wear OS apps. The name FamiTie is a working name until the trademark and domain checks are done.
+Not built yet: waking a locked or closed phone (push notifications, CallKit, Android foreground service), live two-way calls, background location in a plain browser, speech-to-text transcripts, multiple circles per person, and the Apple Watch and Wear OS apps. The name FamiTie is a working name until the trademark and domain checks are done.

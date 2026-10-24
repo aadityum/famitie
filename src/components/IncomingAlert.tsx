@@ -1,15 +1,16 @@
 import type { AlertRow } from '../lib/alerts'
 
-type Props = { alert: AlertRow; senderName: string; onAnswer: () => void; onDismiss: () => void }
+type Props = { alert: AlertRow; senderName: string; onAnswer: () => void; onDismiss: () => void; quiet?: boolean }
 
 /** Full-screen "ringing" overlay shown to every other member of the circle. */
-export default function IncomingAlert({ alert, senderName, onAnswer, onDismiss }: Props) {
+export default function IncomingAlert({ alert, senderName, onAnswer, onDismiss, quiet }: Props) {
   const sos = alert.type === 'sos'
   return (
     <div className={`fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 p-8 text-center text-white ${sos ? 'bg-red-600' : 'bg-brand'}`}>
       <p className="text-sm font-semibold uppercase tracking-widest opacity-80">{sos ? 'SOS' : 'Come for a sec'}</p>
       <p className="text-4xl font-extrabold">{senderName}</p>
       <p className="text-lg opacity-90">{sos ? 'needs help right now' : 'is asking you to come'}</p>
+      {quiet && <p className="text-xs opacity-70">Shown quietly because of your status or silent mode.</p>}
 
       {alert.lat != null && alert.lng != null && (
         <a

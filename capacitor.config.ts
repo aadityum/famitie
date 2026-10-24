@@ -5,6 +5,10 @@ const config: CapacitorConfig = {
   appId: 'com.adibotz.famitie',
   appName: 'FamiTie',
   webDir: 'dist',
+  // Needed by the background-location plugin so Android keeps sending updates after 5 minutes in the background.
+  android: {
+    useLegacyBridge: true,
+  },
 }
 
 export default config

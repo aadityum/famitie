@@ -3,7 +3,16 @@ import { supabase } from './supabase'
 
 export type Role = 'elder' | 'responder' | 'admin'
 export type Circle = { id: string; name: string; inviteCode: string; role: Role }
-export type Member = { userId: string; name: string; role: Role }
+export type Member = {
+  userId: string
+  name: string
+  role: Role
+  isAdmin: boolean
+  lastSeenAt: string | null
+  joinedAt: string
+  status: 'available' | 'meeting' | 'sleeping' | 'dnd'
+  statusUntil: string | null
+}
 export type MemberLoc = { lat: number; lng: number; updatedAt: string }
 
 const db = () => {
@@ -11,7 +20,16 @@ const db = () => {
   return supabase
 }
 
+const errMsg = (e: unknown) => (e instanceof Error ? e.message : (e as { message?: string })?.message ?? 'Something went wrong')
+
 export const roleLabel = (r: Role) => (r === 'elder' ? 'Elder' : r === 'admin' ? 'Admin' : 'Family')
+
+/** A member who has not opened the app for this long is flagged as inactive. */
+export const INACTIVE_DAYS = 7
+export const isInactive = (m: Member) => {
+  const seen = new Date(m.lastSeenAt ?? m.joinedAt).getTime()
+  return Date.now() - seen > INACTIVE_DAYS * 86_400_000
+}
 
 export async function fetchMyCircles(userId: string): Promise<Circle[]> {
   const { data, error } = await db()
@@ -40,10 +58,35 @@ export async function joinCircle(code: string, role: Role) {
   if (error) throw error
 }
 
+/** Leave a circle. If you are the admin, the database hands admin to someone else automatically. */
+export async function leaveCircle(groupId: string) {
+  const { error } = await db().rpc('leave_family_group', { p_group: groupId })
+  if (error) throw new Error(errMsg(error))
+}
+
+/** Admin only: take a person out of the circle. */
+export async function removeMember(groupId: string, userId: string) {
+  const { error } = await db().rpc('remove_member', { p_group: groupId, p_user: userId })
+  if (error) throw new Error(errMsg(error))
+}
+
+/** Admin only: make someone else the admin (you stop being admin). */
+export async function makeAdmin(groupId: string, userId: string) {
+  const { error } = await db().rpc('transfer_admin', { p_group: groupId, p_user: userId })
+  if (error) throw new Error(errMsg(error))
+}
+
+/** Heartbeat so the circle can tell who is still using the app. */
+export async function touchLastSeen() {
+  if (!supabase) return
+  await supabase.rpc('touch_last_seen')
+}
+
 /** Members of a circle plus the shared locations of those who switched sharing on. Live-updating. */
 export function useMembers(circle: Circle | null) {
   const [members, setMembers] = useState<Member[]>([])
   const [locs, setLocs] = useState<Record<string, MemberLoc>>({})
+  const [loaded, setLoaded] = useState(false)
   const [tick, setTick] = useState(0)
   const reload = useCallback(() => setTick((n) => n + 1), [])
 
@@ -56,16 +99,31 @@ export function useMembers(circle: Circle | null) {
     ;(async () => {
       const { data: mem } = await client
         .from('family_members')
-        .select('user_id, role, profiles(display_name)')
+        .select('user_id, role, is_admin, last_seen_at, joined_at, profiles(display_name, status, status_until)')
         .eq('group_id', circle.id)
       if (!alive || !mem) return
-      type Row = { user_id: string; role: Role; profiles: { display_name: string } | null }
-      const list = (mem as unknown as Row[]).map((m) => ({
-        userId: m.user_id,
-        role: m.role,
-        name: m.profiles?.display_name ?? 'Member',
-      }))
+      type Row = {
+        user_id: string
+        role: Role
+        is_admin: boolean
+        last_seen_at: string | null
+        joined_at: string
+        profiles: { display_name: string; status: Member['status'] | null; status_until: string | null } | null
+      }
+      const list: Member[] = (mem as unknown as Row[])
+        .map((m) => ({
+          userId: m.user_id,
+          role: m.role,
+          isAdmin: m.is_admin,
+          lastSeenAt: m.last_seen_at,
+          joinedAt: m.joined_at,
+          name: m.profiles?.display_name ?? 'Member',
+          status: m.profiles?.status ?? 'available',
+          statusUntil: m.profiles?.status_until ?? null,
+        }))
+        .sort((a, b) => Number(b.isAdmin) - Number(a.isAdmin) || a.name.localeCompare(b.name))
       setMembers(list)
+      setLoaded(true)
       const ids = new Set(list.map((m) => m.userId))
 
       const { data: rows } = await client
@@ -104,5 +162,5 @@ export function useMembers(circle: Circle | null) {
     }
   }, [circle, tick])
 
-  return { members, locs, reload }
+  return { members, locs, loaded, reload }
 }

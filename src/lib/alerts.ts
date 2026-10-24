@@ -14,6 +14,7 @@ export type AlertRow = {
   lat: number | null
   lng: number | null
   answered_by: string | null
+  answered_at: string | null
   created_at: string
 }
 
@@ -64,6 +65,20 @@ export async function sendAlert(
 export async function answerAlert(alertId: string) {
   if (!supabase) return
   await supabase.rpc('answer_alert', { p_alert: alertId })
+}
+
+/** Alerts from the last 24 hours (the longest anyone can choose to keep them visible). */
+export async function fetchRecentAlerts(groupId: string): Promise<AlertRow[]> {
+  if (!supabase) return []
+  const since = new Date(Date.now() - 24 * 3600_000).toISOString()
+  const { data } = await supabase
+    .from('alerts')
+    .select('id, group_id, sender_id, type, status, lat, lng, answered_by, answered_at, created_at')
+    .eq('group_id', groupId)
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(50)
+  return (data ?? []) as AlertRow[]
 }
 
 /** Live feed of alerts for one circle. */
